@@ -19,7 +19,7 @@ Allows you to register one set of hotkeys to control every slideshow source in t
 
 A slideshow is active if it’s being shown on the final mix.
 
-A slideshow is showing if it’s being displayed anywhere at all, whether on a display context or on the final output.
+A slideshow is showing if it’s being displayed anywhere at all, whether on a display context or on the final output. Typically, this means a slideshow that's being displayed in the preview window. 
 
 --------------
 
