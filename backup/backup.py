@@ -41,8 +41,6 @@ class Backup:
         # TODO: implement some kind of sanitisation...
         return backup_name
 
-import wx
-
 class ObsBackupFrame(wx.Frame):
     def __init__(self, title, backup):
         super().__init__(parent=None, title=title)
@@ -117,8 +115,8 @@ class ObsBackupFrame(wx.Frame):
 
 
 if __name__ == "__main__":
+    app = wx.App()
     backup = Backup(os.path.expanduser("~/obs-backups"), os.path.expanduser("~/.config/obs-studio"))
     frame = ObsBackupFrame(title="OBS Backup Tool", backup=backup)
     frame.Show()
-    app = wx.App()
     app.MainLoop()
