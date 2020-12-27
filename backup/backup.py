@@ -1,6 +1,17 @@
 import os
+import psutil
 import subprocess
 import wx
+
+class Obs:
+    def __init__(self):
+        pass
+
+    def is_running(self):
+        try:
+            return any([proc.name().lower() == "obs" for proc in psutil.process_iter()])
+        except:
+            return False
 
 class Backup:
     def __init__(self, backups_folder, obs_folder):
@@ -12,6 +23,7 @@ class Backup:
             os.makedirs(self.backups_folder)
 
     def backup(self, backup_name):
+        #TODO: Check whether backup already exists.
         safe_backup_name = self._sanitise(backup_name)
         destination = os.path.join(self.backups_folder, safe_backup_name)
         process = subprocess.run(
@@ -41,8 +53,10 @@ class Backup:
         # TODO: implement some kind of sanitisation...
         return backup_name
 
+import wx
+
 class ObsBackupFrame(wx.Frame):
-    def __init__(self, title, backup):
+    def __init__(self, title, backup, obs):
         super().__init__(parent=None, title=title)
 
         # This Frame contains a title and a panel arranged in a vertical BoxSizer
@@ -54,20 +68,26 @@ class ObsBackupFrame(wx.Frame):
         #  ---------------
         #
         # The panel is a 3x2 grid. Each row has a label, a control, and a button. 
-        # The control should stretch with the grid. 
-        # The control should start off three times bigger than the label and the button.
+        #
+        # The central control should stretch with the grid. 
+        #
+        # The control should start off three times bigger than the label and/or
+        # the button, but the best I can do is set an initial size of the 
+        # button to be 300 pixels wide. 
         #
 
         self.backup = backup
+        self.obs = obs
 
         panel = wx.Panel(self)
 
         grid_sizer = wx.FlexGridSizer(3, vgap=10, hgap=10)
         
         backup_name_lbl = wx.StaticText(panel, label="Backup name: ")
-        self.backup_name_tb = wx.TextCtrl(panel)
+        self.backup_name_tb = wx.TextCtrl(panel, size=(300, -1))
         self.backup_btn = wx.Button(panel, label="Backup")
         self.backup_btn.Bind(wx.EVT_BUTTON, self.backup_button_clicked)
+
         restore_list_lbl = wx.StaticText(panel, label="Backup to restore: ")
         self.restore_list_dd = wx.ComboBox(panel, choices=["one", "two", "three"], style=wx.CB_READONLY)
         self.restore_list_dd.Bind(wx.EVT_COMBOBOX_DROPDOWN, self.restore_combobox_expanded)
@@ -75,8 +95,8 @@ class ObsBackupFrame(wx.Frame):
         self.restore_btn.Bind(wx.EVT_BUTTON, self.restore_button_clicked)
 
         grid_sizer.AddMany([
-            (backup_name_lbl, 1), (self.backup_name_tb, 1, wx.EXPAND), (self.backup_btn, 1), 
-            (restore_list_lbl, 1), (self.restore_list_dd, 1, wx.EXPAND), (self.restore_btn, 1)
+            (backup_name_lbl, 0), (self.backup_name_tb, 1, wx.EXPAND), (self.backup_btn, 0), 
+            (restore_list_lbl, 0), (self.restore_list_dd, 1, wx.EXPAND), (self.restore_btn, 0)
         ])
 
         grid_sizer.SetFlexibleDirection(wx.BOTH)
@@ -88,6 +108,18 @@ class ObsBackupFrame(wx.Frame):
         panel.SetSizerAndFit(grid_sizer)
         self.SetSizerAndFit(frame_sizer)
 
+    def exception_handler(func):
+        def inner_function(self, *args, **kwargs):
+            try:
+                func(self, *args, **kwargs)
+            except Exception as error:
+                # Not much more we can do here. 
+                # TODO: Add logging? 
+                wx.MessageBox(f"{error}", "An error occurred", wx.OK, self)
+
+        return inner_function
+
+    @exception_handler
     def backup_button_clicked(self, event):
         backup_name = self.backup_name_tb.Value
         if not backup_name:
@@ -95,28 +127,43 @@ class ObsBackupFrame(wx.Frame):
             wx.MessageDialog(self, f"Please enter a name for the backup").ShowModal()
             return
 
-        # TODO: Check to see if OBS is still running first
+        if self.cancel_because_obs_is_running():
+            return
+
         self.backup.backup(backup_name)
         wx.MessageDialog(self, f"Created new backup: '{backup_name}'").ShowModal()
 
+    @exception_handler
     def restore_button_clicked(self, event):
         selection = self.restore_list_dd.StringSelection
         if not selection:
             wx.MessageDialog(self, f"Please select a backup to restore").ShowModal()
             return
         
-        # TODO: Check to see if OBS is still running first
+        if self.cancel_because_obs_is_running():
+            return
+
         self.backup.restore(selection)
         wx.MessageDialog(self, f"Backup '{selection}' has been restored").ShowModal()
 
+    @exception_handler
     def restore_combobox_expanded(self, event):
         available_backups = self.backup.get_backups()
         self.restore_list_dd.Set(available_backups)
 
+    def cancel_because_obs_is_running(self):
+        if self.obs.is_running():
+            dialog_result = wx.MessageBox("Warning: OBS is still running. Are you sure you want to continue?", "OBS still running", wx.YES | wx.NO, self)
+            if dialog_result == wx.NO:
+                return True
+        else:
+            return False
 
 if __name__ == "__main__":
     app = wx.App()
     backup = Backup(os.path.expanduser("~/obs-backups"), os.path.expanduser("~/.config/obs-studio"))
-    frame = ObsBackupFrame(title="OBS Backup Tool", backup=backup)
+    obs = Obs()
+    frame = ObsBackupFrame(title="OBS Backup Tool", backup=backup, obs=obs)
     frame.Show()
+
     app.MainLoop()
