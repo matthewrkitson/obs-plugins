@@ -53,6 +53,8 @@ class Backup:
         # TODO: implement some kind of sanitisation...
         return backup_name
 
+import wx
+
 class ObsBackupFrame(wx.Frame):
     def __init__(self, title, backup, obs):
         super().__init__(parent=None, title=title)
