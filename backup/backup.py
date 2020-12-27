@@ -13,7 +13,6 @@ class Obs:
         except:
             return False
 
-
 class Backup:
     def __init__(self, backups_folder, obs_folder):
         self.backups_folder = backups_folder.rstrip("/")
@@ -107,6 +106,18 @@ class ObsBackupFrame(wx.Frame):
         panel.SetSizerAndFit(grid_sizer)
         self.SetSizerAndFit(frame_sizer)
 
+    def exception_handler(func):
+        def inner_function(self, *args, **kwargs):
+            try:
+                func(self, *args, **kwargs)
+            except Exception as error:
+                # Not much more we can do here. 
+                # TODO: Add logging? 
+                wx.MessageBox(f"{error}", "An error occurred", wx.OK, self)
+
+        return inner_function
+
+    @exception_handler
     def backup_button_clicked(self, event):
         backup_name = self.backup_name_tb.Value
         if not backup_name:
@@ -120,6 +131,7 @@ class ObsBackupFrame(wx.Frame):
         self.backup.backup(backup_name)
         wx.MessageDialog(self, f"Created new backup: '{backup_name}'").ShowModal()
 
+    @exception_handler
     def restore_button_clicked(self, event):
         selection = self.restore_list_dd.StringSelection
         if not selection:
@@ -132,6 +144,7 @@ class ObsBackupFrame(wx.Frame):
         self.backup.restore(selection)
         wx.MessageDialog(self, f"Backup '{selection}' has been restored").ShowModal()
 
+    @exception_handler
     def restore_combobox_expanded(self, event):
         available_backups = self.backup.get_backups()
         self.restore_list_dd.Set(available_backups)
@@ -143,8 +156,6 @@ class ObsBackupFrame(wx.Frame):
                 return True
         else:
             return False
-
-
 
 if __name__ == "__main__":
     app = wx.App()
