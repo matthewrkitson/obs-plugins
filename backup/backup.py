@@ -94,8 +94,11 @@ class ObsBackupFrame(wx.Frame):
         
         backup_name_lbl = wx.StaticText(panel, label="Backup name: ")
         self.backup_name_tb = wx.TextCtrl(panel, size=(300, -1))
+        self.backup_name_tb.Bind(wx.EVT_TEXT, self.backup_name_changed)
         self.backup_btn = wx.Button(panel, label="Backup")
         self.backup_btn.Bind(wx.EVT_BUTTON, self.backup_button_clicked)
+
+        self.backup_name_tb.Value = "" # Manually set to trigger button enable/disable
 
         restore_list_lbl = wx.StaticText(panel, label="Backup to restore: ")
         self.restore_list_dd = wx.ComboBox(panel, choices=[], style=wx.CB_READONLY)
@@ -142,17 +145,20 @@ class ObsBackupFrame(wx.Frame):
     @exception_handler
     def backup_button_clicked(self, event):
         backup_name = self.backup_name_tb.Value
-        if not backup_name:
-            # TODO: Set a validator on the button so it's only enabled when a valid name is entered.
-            # https://github.com/matthewrkitson/obs-plugins/issues/6
-            wx.MessageDialog(self, f"Please enter a name for the backup").ShowModal()
-            return
 
         if self.cancel_because_obs_is_running():
             return
 
         if self.backup.backup(backup_name, self.confirm_overwrite()):
             wx.MessageDialog(self, f"Created new backup: '{backup_name}'").ShowModal()
+
+    @exception_handler
+    def backup_name_changed(self, event):
+        name = event.String.strip()
+        if name:
+            self.backup_btn.Enable()
+        else:
+            self.backup_btn.Disable()
 
     @exception_handler
     def restore_button_clicked(self, event):
