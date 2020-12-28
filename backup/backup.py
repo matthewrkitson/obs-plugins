@@ -101,7 +101,7 @@ class ObsBackupFrame(wx.Frame):
         self.backup_name_tb.Value = "" # Manually set to trigger button enable/disable
 
         restore_list_lbl = wx.StaticText(panel, label="Backup to restore: ")
-        self.restore_list_dd = wx.ComboBox(panel, choices=[], style=wx.CB_READONLY)
+        self.restore_list_dd = wx.ComboBox(panel, choices=["__"], style=wx.CB_READONLY) # Choices only needs to be here to allow dropdown to be expanded for the first time.
         self.restore_list_dd.Bind(wx.EVT_COMBOBOX_DROPDOWN, self.restore_combobox_expanded)
         self.restore_btn = wx.Button(panel, label="Restore")
         self.restore_btn.Bind(wx.EVT_BUTTON, self.restore_button_clicked)
