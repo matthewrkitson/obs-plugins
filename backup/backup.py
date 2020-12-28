@@ -22,11 +22,16 @@ class Backup:
         if not os.path.isdir(self.backups_folder):
             os.makedirs(self.backups_folder)
 
-    def backup(self, backup_name):
-        # TODO: Check whether backup already exists. 
-        # https://github.com/matthewrkitson/obs-plugins/issues/4
+    def backup(self, backup_name, confirm_continue=None):
+        # The confirm_continue callback will be passed the backup name and
+        # destination path if the destination backup already exists.
+        # Return True to confirm that the overwrite should continue. 
         safe_backup_name = self._sanitise(backup_name)
         destination = os.path.join(self.backups_folder, safe_backup_name)
+
+        if os.path.isdir(destination) and confirm_continue and not confirm_continue(backup_name, destination):
+            return False
+
         process = subprocess.run(
             ["rsync", "-avP", self.obs_folder, destination],
             stdout = subprocess.PIPE,
@@ -34,6 +39,8 @@ class Backup:
 
         if process.returncode != 0:
             raise ChildProcessError(f"rsync exit code: {process.returncode}\n\n{process.stdout}\n\n{process.stderr}")
+
+        return True
 
     def get_backups(self):
         return [ f.name for f in os.scandir(self.backups_folder) if f.is_dir() ]
@@ -90,7 +97,7 @@ class ObsBackupFrame(wx.Frame):
         self.backup_btn = wx.Button(panel, label="Backup")
         self.backup_btn.Bind(wx.EVT_BUTTON, self.backup_button_clicked)
 
-        restore_list_lbl = wx.StaticText(panel, label="Back8/bup to restore: ")
+        restore_list_lbl = wx.StaticText(panel, label="Backup to restore: ")
         self.restore_list_dd = wx.ComboBox(panel, choices=[], style=wx.CB_READONLY)
         self.restore_list_dd.Bind(wx.EVT_COMBOBOX_DROPDOWN, self.restore_combobox_expanded)
         self.restore_btn = wx.Button(panel, label="Restore")
@@ -122,6 +129,16 @@ class ObsBackupFrame(wx.Frame):
 
         return inner_function
 
+    def confirm_overwrite(self):
+        return (
+            lambda backup_name, destination:
+                wx.MessageBox(
+                    f"Backup {backup_name} already exists. Do you want to overwrite it? ", 
+                    "Backup exists", 
+                    wx.YES | wx.NO,
+                    self) == wx.YES
+        )
+
     @exception_handler
     def backup_button_clicked(self, event):
         backup_name = self.backup_name_tb.Value
@@ -134,8 +151,8 @@ class ObsBackupFrame(wx.Frame):
         if self.cancel_because_obs_is_running():
             return
 
-        self.backup.backup(backup_name)
-        wx.MessageDialog(self, f"Created new backup: '{backup_name}'").ShowModal()
+        if self.backup.backup(backup_name, self.confirm_overwrite()):
+            wx.MessageDialog(self, f"Created new backup: '{backup_name}'").ShowModal()
 
     @exception_handler
     def restore_button_clicked(self, event):
