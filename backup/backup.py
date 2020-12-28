@@ -23,7 +23,8 @@ class Backup:
             os.makedirs(self.backups_folder)
 
     def backup(self, backup_name):
-        #TODO: Check whether backup already exists.
+        # TODO: Check whether backup already exists. 
+        # https://github.com/matthewrkitson/obs-plugins/issues/4
         safe_backup_name = self._sanitise(backup_name)
         destination = os.path.join(self.backups_folder, safe_backup_name)
         process = subprocess.run(
@@ -50,7 +51,8 @@ class Backup:
         pass
 
     def _sanitise(self, backup_name):
-        # TODO: implement some kind of sanitisation...
+        # TODO: implement some kind of sanitisation... 
+        # https://github.com/matthewrkitson/obs-plugins/issues/3
         return backup_name
 
 import wx
@@ -88,8 +90,8 @@ class ObsBackupFrame(wx.Frame):
         self.backup_btn = wx.Button(panel, label="Backup")
         self.backup_btn.Bind(wx.EVT_BUTTON, self.backup_button_clicked)
 
-        restore_list_lbl = wx.StaticText(panel, label="Backup to restore: ")
-        self.restore_list_dd = wx.ComboBox(panel, choices=["one", "two", "three"], style=wx.CB_READONLY)
+        restore_list_lbl = wx.StaticText(panel, label="Back8/bup to restore: ")
+        self.restore_list_dd = wx.ComboBox(panel, choices=[], style=wx.CB_READONLY)
         self.restore_list_dd.Bind(wx.EVT_COMBOBOX_DROPDOWN, self.restore_combobox_expanded)
         self.restore_btn = wx.Button(panel, label="Restore")
         self.restore_btn.Bind(wx.EVT_BUTTON, self.restore_button_clicked)
@@ -115,6 +117,7 @@ class ObsBackupFrame(wx.Frame):
             except Exception as error:
                 # Not much more we can do here. 
                 # TODO: Add logging? 
+                # https://github.com/matthewrkitson/obs-plugins/issues/5
                 wx.MessageBox(f"{error}", "An error occurred", wx.OK, self)
 
         return inner_function
@@ -124,6 +127,7 @@ class ObsBackupFrame(wx.Frame):
         backup_name = self.backup_name_tb.Value
         if not backup_name:
             # TODO: Set a validator on the button so it's only enabled when a valid name is entered.
+            # https://github.com/matthewrkitson/obs-plugins/issues/6
             wx.MessageDialog(self, f"Please enter a name for the backup").ShowModal()
             return
 
