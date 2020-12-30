@@ -1,3 +1,4 @@
+import datetime
 import os
 import psutil
 import subprocess
@@ -42,8 +43,8 @@ class Backup:
 
         return True
 
-    def get_backups(self):
-        return [ f.name for f in os.scandir(self.backups_folder) if f.is_dir() ]
+    def get_backup_DirEntries(self):
+        return [ f for f in os.scandir(self.backups_folder) if f.is_dir() ]
 
     def restore(self, backup_name):
         # Backup name is expected to be the name of the folder only (not the full path to the backup)
@@ -68,55 +69,53 @@ class ObsBackupFrame(wx.Frame):
     def __init__(self, title, backup, obs):
         super().__init__(parent=None, title=title)
 
-        # This Frame contains a title and a panel arranged in a vertical BoxSizer
-        #
-        #  ---------------
-        #  |    Title    |
-        #  | ----------- |
-        #  |    Panel    |
-        #  ---------------
-        #
-        # The panel is a 3x2 grid. Each row has a label, a control, and a button. 
-        #
-        # The central control should stretch with the grid. 
-        #
-        # The control should start off three times bigger than the label and/or
-        # the button, but the best I can do is set an initial size of the 
-        # button to be 300 pixels wide. 
-        #
-
         self.backup = backup
         self.obs = obs
 
         panel = wx.Panel(self)
 
-        grid_sizer = wx.FlexGridSizer(3, vgap=10, hgap=10)
         
-        backup_name_lbl = wx.StaticText(panel, label="Backup name: ")
-        self.backup_name_tb = wx.TextCtrl(panel, size=(300, -1))
+        backup_name_lbl = wx.StaticText(panel, label="Create backup")
+        self.backup_name_tb = wx.TextCtrl(panel, size=(500, -1))
         self.backup_name_tb.Bind(wx.EVT_TEXT, self.backup_name_changed)
         self.backup_btn = wx.Button(panel, label="Backup")
         self.backup_btn.Bind(wx.EVT_BUTTON, self.backup_button_clicked)
+        self.backup_name_tb.Value = "" # Manually set to update button enabled-ness
 
-        self.backup_name_tb.Value = "" # Manually set to trigger button enable/disable
-
-        restore_list_lbl = wx.StaticText(panel, label="Backup to restore: ")
-        self.restore_list_dd = wx.ComboBox(panel, choices=["__"], style=wx.CB_READONLY) # Choices only needs to be here to allow dropdown to be expanded for the first time.
-        self.restore_list_dd.Bind(wx.EVT_COMBOBOX_DROPDOWN, self.restore_combobox_expanded)
+        self.backup_sorter = self.name_sorter
+        self.column_sorters = [ self.name_sorter, self.date_sorter ]
+        self.backup_sorter_direction = 1 # +1 for ascending, -1 for descending.
+        self.restore_list_data = list()
+        restore_list_lbl = wx.StaticText(panel, label="Restore backup")
+        self.restore_list_ctrl = wx.ListCtrl(panel, wx.ID_ANY, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        self.restore_list_ctrl.InsertColumn(0, "Name", width=300)
+        self.restore_list_ctrl.InsertColumn(1, "Date", width=200)
+        self.restore_list_ctrl.Bind(wx.EVT_LIST_ITEM_SELECTED, self.restore_list_item_selection_changed)
+        self.restore_list_ctrl.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.restore_list_item_selection_changed)
+        self.restore_list_ctrl.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.restore_list_item_activated)
+        self.restore_list_ctrl.Bind(wx.EVT_LIST_COL_CLICK, self.restore_list_column_clicked)
         self.restore_btn = wx.Button(panel, label="Restore")
         self.restore_btn.Bind(wx.EVT_BUTTON, self.restore_button_clicked)
+        self.populate_restore_list(self.backup)
+        self.restore_list_item_selection_changed(None) # Update button enabled-ness
 
+        empty_cell = (0, 0)
+        grid_sizer = wx.FlexGridSizer(2, vgap=10, hgap=10)
         grid_sizer.AddMany([
-            (backup_name_lbl, 0), (self.backup_name_tb, 1, wx.EXPAND), (self.backup_btn, 0), 
-            (restore_list_lbl, 0), (self.restore_list_dd, 1, wx.EXPAND), (self.restore_btn, 0)
+            (backup_name_lbl, 0), empty_cell,
+            (self.backup_name_tb, 1, wx.EXPAND), (self.backup_btn, 0), 
+            (restore_list_lbl, 0), empty_cell,
+            (self.restore_list_ctrl, 1, wx.EXPAND), (self.restore_btn, 0)
         ])
 
         grid_sizer.SetFlexibleDirection(wx.BOTH)
-        grid_sizer.AddGrowableCol(1, 3)
+        grid_sizer.AddGrowableCol(idx=0, proportion=3)
+        grid_sizer.AddGrowableRow(idx=3, proportion=3)
 
         frame_sizer = wx.BoxSizer(wx.VERTICAL)
         frame_sizer.Add(wx.StaticText(self, label="OBS Backup Tool"), 0, wx.ALIGN_CENTER | wx.ALL, 10)
         frame_sizer.Add(panel, 1, wx.EXPAND | wx.ALL, 5) 
+ 
         panel.SetSizerAndFit(grid_sizer)
         self.SetSizerAndFit(frame_sizer)
 
@@ -142,6 +141,24 @@ class ObsBackupFrame(wx.Frame):
                     self) == wx.YES
         )
 
+    def name_sorter(self, item1_index, item2_index):
+        item1 = self.restore_list_data[item1_index]
+        item2 = self.restore_list_data[item2_index]
+        if item1.name == item2.name: return 0
+        if item1.name > item2.name: return 1 * self.backup_sorter_direction
+        if item1.name < item2.name: return -1 * self.backup_sorter_direction
+        
+        raise ValueError(f"Could not compare {item1.name} and {item2.name}")
+
+    def date_sorter(self, item1_index, item2_index):
+        item1 = self.restore_list_data[item1_index]
+        item2 = self.restore_list_data[item2_index]
+        if item1.stat().st_ctime == item2.stat().st_ctime: return 0
+        if item1.stat().st_ctime > item2.stat().st_ctime: return 1 * self.backup_sorter_direction
+        if item1.stat().st_ctime < item2.stat().st_ctime: return -1 * self.backup_sorter_direction
+
+        raise ValueError(f"Could not compare {item1.stat().st_ctime} and {item2.stat().st_ctime}")
+
     @exception_handler
     def backup_button_clicked(self, event):
         backup_name = self.backup_name_tb.Value
@@ -150,7 +167,8 @@ class ObsBackupFrame(wx.Frame):
             return
 
         if self.backup.backup(backup_name, self.confirm_overwrite()):
-            wx.MessageDialog(self, f"Created new backup: '{backup_name}'").ShowModal()
+            wx.MessageBox(f"Created new backup: '{backup_name}'", "Created backup", wx.OK, self)
+            self.populate_restore_list(self.backup)
 
     @exception_handler
     def backup_name_changed(self, event):
@@ -160,23 +178,57 @@ class ObsBackupFrame(wx.Frame):
         else:
             self.backup_btn.Disable()
 
+    def populate_restore_list(self, backup):
+        self.restore_list_ctrl.DeleteAllItems()
+        self.restore_list_data.clear()
+        for dir_entry in backup.get_backup_DirEntries():
+            index = self.restore_list_ctrl.ItemCount
+            self.restore_list_data.insert(index, dir_entry)
+            self.restore_list_ctrl.InsertItem(index, dir_entry.name)
+            self.restore_list_ctrl.SetItem(index, column=1, label=f"{datetime.datetime.fromtimestamp(dir_entry.stat().st_ctime):%Y-%m-%d %H:%M:%S}")
+            self.restore_list_ctrl.SetItemData(index, index)
+
+        self.restore_list_ctrl.SortItems(self.backup_sorter)
+
+    @exception_handler
+    def restore_list_item_selection_changed(self, event):
+        if self.restore_list_ctrl.SelectedItemCount:
+            self.restore_btn.Enable()
+        else:
+            self.restore_btn.Disable()
+
+    @exception_handler
+    def restore_list_item_activated(self, event):
+        self.restore_backup()
+
+    @exception_handler
+    def restore_list_column_clicked(self, event):
+        sorter = self.column_sorters[event.Column]
+        if sorter == self.backup_sorter:
+            self.backup_sorter_direction = -self.backup_sorter_direction
+        else:
+            self.backup_sorter_direction = 1
+        self.backup_sorter = sorter
+
+        self.restore_list_ctrl.SortItems(sorter)
+
     @exception_handler
     def restore_button_clicked(self, event):
-        selection = self.restore_list_dd.StringSelection
-        if not selection:
-            wx.MessageDialog(self, f"Please select a backup to restore").ShowModal()
+        self.restore_backup()
+
+    def restore_backup(self):
+        if self.restore_list_ctrl.SelectedItemCount != 1:
+            wx.MessageBox(self, f"Please select a backup to restore", "Select backup", wx.OK, self)
             return
-        
+
         if self.cancel_because_obs_is_running():
             return
-
-        self.backup.restore(selection)
-        wx.MessageDialog(self, f"Backup '{selection}' has been restored").ShowModal()
-
-    @exception_handler
-    def restore_combobox_expanded(self, event):
-        available_backups = self.backup.get_backups()
-        self.restore_list_dd.Set(available_backups)
+        
+        selection_index = self.restore_list_ctrl.GetFirstSelected()
+        data_index = self.restore_list_ctrl.GetItemData(selection_index)
+        selection = self.restore_list_data[data_index]
+        self.backup.restore(selection.name)
+        wx.MessageDialog(self, f"Backup '{selection.name}' has been restored").ShowModal()
 
     def cancel_because_obs_is_running(self):
         if self.obs.is_running():
