@@ -83,7 +83,7 @@ class ObsBackupFrame(wx.Frame):
         self.backup_name_tb.Value = "" # Manually set to update button enabled-ness
 
         self.backup_sorter = self.name_sorter
-        self.column_sorters = [ self.name_sorter, self.date_sorter ]
+        self.column_sorters = [ (self.name_sorter ,1), (self.date_sorter, -1) ] # Tuple is sorter and default direction. 
         self.backup_sorter_direction = 1 # +1 for ascending, -1 for descending.
         self.restore_list_data = list()
         restore_list_lbl = wx.StaticText(panel, label="Restore backup")
@@ -203,11 +203,11 @@ class ObsBackupFrame(wx.Frame):
 
     @exception_handler
     def restore_list_column_clicked(self, event):
-        sorter = self.column_sorters[event.Column]
+        (sorter, default_direction) = self.column_sorters[event.Column]
         if sorter == self.backup_sorter:
             self.backup_sorter_direction = -self.backup_sorter_direction
         else:
-            self.backup_sorter_direction = 1
+            self.backup_sorter_direction = default_direction
         self.backup_sorter = sorter
 
         self.restore_list_ctrl.SortItems(sorter)
