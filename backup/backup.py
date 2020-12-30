@@ -1,6 +1,7 @@
 import datetime
 import os
 import psutil
+import shutil
 import subprocess
 import wx
 
@@ -58,6 +59,10 @@ class Backup:
             raise ChildProcessError(f"rsync exit code: {process.returncode}\n\n{process.stdout}\n\n{process.stderr}")
         pass
 
+    def delete(self, backup_name):
+        destination = os.path.join(self.backups_folder, backup_name)
+        shutil.rmtree(destination)
+
     def _sanitise(self, backup_name):
         # TODO: implement some kind of sanitisation... 
         # https://github.com/matthewrkitson/obs-plugins/issues/3
@@ -73,8 +78,7 @@ class ObsBackupFrame(wx.Frame):
         self.obs = obs
 
         panel = wx.Panel(self)
-
-        
+    
         backup_name_lbl = wx.StaticText(panel, label="Create backup")
         self.backup_name_tb = wx.TextCtrl(panel, size=(500, -1))
         self.backup_name_tb.Bind(wx.EVT_TEXT, self.backup_name_changed)
@@ -87,25 +91,34 @@ class ObsBackupFrame(wx.Frame):
         self.backup_sorter_direction = 1 # +1 for ascending, -1 for descending.
         self.restore_list_data = list()
         restore_list_lbl = wx.StaticText(panel, label="Restore backup")
-        self.restore_list_ctrl = wx.ListCtrl(panel, wx.ID_ANY, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        self.restore_list_ctrl = wx.ListCtrl(panel, wx.ID_ANY, style=wx.LC_REPORT)
         self.restore_list_ctrl.InsertColumn(0, "Name", width=300)
         self.restore_list_ctrl.InsertColumn(1, "Date", width=200)
         self.restore_list_ctrl.Bind(wx.EVT_LIST_ITEM_SELECTED, self.restore_list_item_selection_changed)
         self.restore_list_ctrl.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.restore_list_item_selection_changed)
         self.restore_list_ctrl.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.restore_list_item_activated)
         self.restore_list_ctrl.Bind(wx.EVT_LIST_COL_CLICK, self.restore_list_column_clicked)
+
         self.restore_btn = wx.Button(panel, label="Restore")
         self.restore_btn.Bind(wx.EVT_BUTTON, self.restore_button_clicked)
+        self.delete_btn = wx.Button(panel, label="Delete")
+        self.delete_btn.Bind(wx.EVT_BUTTON, self.delete_button_clicked)
+
+        empty_cell = (0, 0)
+        button_sizer = wx.BoxSizer(wx.VERTICAL)
+        button_sizer.Add(self.restore_btn, 0, wx.EXPAND)
+        button_sizer.AddSpacer(5)
+        button_sizer.Add(self.delete_btn, 0, wx.EXPAND)
+
         self.populate_restore_list(self.backup)
         self.restore_list_item_selection_changed(None) # Update button enabled-ness
 
-        empty_cell = (0, 0)
         grid_sizer = wx.FlexGridSizer(2, vgap=10, hgap=10)
         grid_sizer.AddMany([
             (backup_name_lbl, 0), empty_cell,
             (self.backup_name_tb, 1, wx.EXPAND), (self.backup_btn, 0), 
             (restore_list_lbl, 0), empty_cell,
-            (self.restore_list_ctrl, 1, wx.EXPAND), (self.restore_btn, 0)
+            (self.restore_list_ctrl, 1, wx.EXPAND), (button_sizer, 0)
         ])
 
         grid_sizer.SetFlexibleDirection(wx.BOTH)
@@ -189,13 +202,15 @@ class ObsBackupFrame(wx.Frame):
             self.restore_list_ctrl.SetItemData(index, index)
 
         self.restore_list_ctrl.SortItems(self.backup_sorter)
+        self.restore_list_item_selection_changed(None)
 
     @exception_handler
     def restore_list_item_selection_changed(self, event):
-        if self.restore_list_ctrl.SelectedItemCount:
-            self.restore_btn.Enable()
-        else:
-            self.restore_btn.Disable()
+        enable_restore_button = self.restore_list_ctrl.SelectedItemCount == 1
+        enable_delete_button = self.restore_list_ctrl.SelectedItemCount >= 1
+
+        self.restore_btn.Enable(enable_restore_button)
+        self.delete_btn.Enable(enable_delete_button)
 
     @exception_handler
     def restore_list_item_activated(self, event):
@@ -218,17 +233,41 @@ class ObsBackupFrame(wx.Frame):
 
     def restore_backup(self):
         if self.restore_list_ctrl.SelectedItemCount != 1:
-            wx.MessageBox(self, f"Please select a backup to restore", "Select backup", wx.OK, self)
+            wx.MessageBox(f"Please select a backup to restore", "Select backup", wx.OK, self)
             return
 
         if self.cancel_because_obs_is_running():
             return
         
-        selection_index = self.restore_list_ctrl.GetFirstSelected()
-        data_index = self.restore_list_ctrl.GetItemData(selection_index)
+        selected_item_index = self.restore_list_ctrl.GetFirstSelected()
+        data_index = self.restore_list_ctrl.GetItemData(selected_item_index)
         selection = self.restore_list_data[data_index]
         self.backup.restore(selection.name)
-        wx.MessageDialog(self, f"Backup '{selection.name}' has been restored").ShowModal()
+        wx.MessageBox(f"Backup '{selection.name}' has been restored", "Backup restored", wx.OK, self)
+
+    def delete_button_clicked(self, event):
+        backup_count = self.restore_list_ctrl.SelectedItemCount
+        sure_response = wx.MessageBox(f"Are you sure you want to delete {backup_count} backup(s)?", "Are you sure?", wx.YES | wx.NO, self)
+        if sure_response == wx.NO:
+            return
+
+        failures = list()
+        selected_item_index = self.restore_list_ctrl.GetFirstSelected()
+        while selected_item_index != -1:
+            data_index = self.restore_list_ctrl.GetItemData(selected_item_index)
+            selection = self.restore_list_data[data_index]
+            try:
+                self.backup.delete(selection.name)
+            except:
+                failures.append(selection.name)
+
+            selected_item_index = self.restore_list_ctrl.GetNextSelected(selected_item_index)
+
+        if len(failures) > 0:
+            wx.MessageBox(f"Failed to delete {len(failures)} backup(s)\n\n" + "\n".join(failures), "Deletion failed", wx.OK, self)
+
+        self.populate_restore_list(self.backup)
+        
 
     def cancel_because_obs_is_running(self):
         if self.obs.is_running():
