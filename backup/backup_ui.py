@@ -1,19 +1,28 @@
 import datetime
 import wx
 
-class ObsBackupFrame(wx.Frame):
+class ObsToolFrame(wx.Frame):
     def __init__(self, title, backup, obs):
         super().__init__(parent=None, title=title)
 
+        panel = ObsBackupPanel(self, backup, obs)
+
+        frame_sizer = wx.BoxSizer(wx.VERTICAL)
+        frame_sizer.Add(wx.StaticText(self, label="OBS Backup Tool"), 0, wx.ALIGN_CENTER | wx.ALL, 10)
+        frame_sizer.Add(panel, 1, wx.EXPAND | wx.ALL, 5) 
+        self.SetSizerAndFit(frame_sizer)
+
+class ObsBackupPanel(wx.Panel):
+    def __init__(self, parent, backup, obs):
+        super().__init__(parent=parent)
+
         self.backup = backup
         self.obs = obs
-
-        panel = wx.Panel(self)
     
-        backup_name_lbl = wx.StaticText(panel, label="Create backup")
-        self.backup_name_tb = wx.TextCtrl(panel, size=(500, -1))
+        backup_name_lbl = wx.StaticText(self, label="Create backup")
+        self.backup_name_tb = wx.TextCtrl(self, size=(500, -1))
         self.backup_name_tb.Bind(wx.EVT_TEXT, self.backup_name_changed)
-        self.backup_btn = wx.Button(panel, label="Backup")
+        self.backup_btn = wx.Button(self, label="Backup")
         self.backup_btn.Bind(wx.EVT_BUTTON, self.backup_button_clicked)
         self.backup_name_tb.Value = "" # Manually set to update button enabled-ness
 
@@ -21,8 +30,8 @@ class ObsBackupFrame(wx.Frame):
         self.column_sorters = [ (self.name_sorter ,1), (self.date_sorter, -1) ] # Tuple is sorter and default direction. 
         self.backup_sorter_direction = 1 # +1 for ascending, -1 for descending.
         self.restore_list_data = list()
-        restore_list_lbl = wx.StaticText(panel, label="Restore backup")
-        self.restore_list_ctrl = wx.ListCtrl(panel, wx.ID_ANY, style=wx.LC_REPORT)
+        restore_list_lbl = wx.StaticText(self, label="Restore backup")
+        self.restore_list_ctrl = wx.ListCtrl(self, wx.ID_ANY, style=wx.LC_REPORT)
         self.restore_list_ctrl.InsertColumn(0, "Name", width=300)
         self.restore_list_ctrl.InsertColumn(1, "Date", width=200)
         self.restore_list_ctrl.Bind(wx.EVT_LIST_ITEM_SELECTED, self.restore_list_item_selection_changed)
@@ -30,9 +39,9 @@ class ObsBackupFrame(wx.Frame):
         self.restore_list_ctrl.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.restore_list_item_activated)
         self.restore_list_ctrl.Bind(wx.EVT_LIST_COL_CLICK, self.restore_list_column_clicked)
 
-        self.restore_btn = wx.Button(panel, label="Restore")
+        self.restore_btn = wx.Button(self, label="Restore")
         self.restore_btn.Bind(wx.EVT_BUTTON, self.restore_button_clicked)
-        self.delete_btn = wx.Button(panel, label="Delete")
+        self.delete_btn = wx.Button(self, label="Delete")
         self.delete_btn.Bind(wx.EVT_BUTTON, self.delete_button_clicked)
 
         empty_cell = (0, 0)
@@ -55,13 +64,8 @@ class ObsBackupFrame(wx.Frame):
         grid_sizer.SetFlexibleDirection(wx.BOTH)
         grid_sizer.AddGrowableCol(idx=0, proportion=3)
         grid_sizer.AddGrowableRow(idx=3, proportion=3)
-
-        frame_sizer = wx.BoxSizer(wx.VERTICAL)
-        frame_sizer.Add(wx.StaticText(self, label="OBS Backup Tool"), 0, wx.ALIGN_CENTER | wx.ALL, 10)
-        frame_sizer.Add(panel, 1, wx.EXPAND | wx.ALL, 5) 
  
-        panel.SetSizerAndFit(grid_sizer)
-        self.SetSizerAndFit(frame_sizer)
+        self.SetSizerAndFit(grid_sizer)
 
     def exception_handler(func):
         def inner_function(self, *args, **kwargs):
