@@ -1,16 +1,7 @@
 import datetime
 import wx
 
-class ObsToolFrame(wx.Frame):
-    def __init__(self, title, backup, obs):
-        super().__init__(parent=None, title=title)
-
-        panel = ObsBackupPanel(self, backup, obs)
-
-        frame_sizer = wx.BoxSizer(wx.VERTICAL)
-        frame_sizer.Add(wx.StaticText(self, label="OBS Backup Tool"), 0, wx.ALIGN_CENTER | wx.ALL, 10)
-        frame_sizer.Add(panel, 1, wx.EXPAND | wx.ALL, 5) 
-        self.SetSizerAndFit(frame_sizer)
+import wxutil
 
 class ObsBackupPanel(wx.Panel):
     def __init__(self, parent, backup, obs):
@@ -67,18 +58,6 @@ class ObsBackupPanel(wx.Panel):
  
         self.SetSizerAndFit(grid_sizer)
 
-    def exception_handler(func):
-        def inner_function(self, *args, **kwargs):
-            try:
-                func(self, *args, **kwargs)
-            except Exception as error:
-                # Not much more we can do here. 
-                # TODO: Add logging? 
-                # https://github.com/matthewrkitson/obs-plugins/issues/5
-                wx.MessageBox(f"{error}", "An error occurred", wx.OK, self)
-
-        return inner_function
-
     def confirm_overwrite(self):
         return (
             lambda backup_name, destination:
@@ -107,7 +86,7 @@ class ObsBackupPanel(wx.Panel):
 
         raise ValueError(f"Could not compare {item1.stat().st_ctime} and {item2.stat().st_ctime}")
 
-    @exception_handler
+    @wxutil.exception_handler
     def backup_button_clicked(self, event):
         backup_name = self.backup_name_tb.Value
 
@@ -118,7 +97,7 @@ class ObsBackupPanel(wx.Panel):
             wx.MessageBox(f"Created new backup: '{backup_name}'", "Created backup", wx.OK, self)
             self.populate_restore_list(self.backup)
 
-    @exception_handler
+    @wxutil.exception_handler
     def backup_name_changed(self, event):
         name = event.String.strip()
         if name:
@@ -139,7 +118,7 @@ class ObsBackupPanel(wx.Panel):
         self.restore_list_ctrl.SortItems(self.backup_sorter)
         self.restore_list_item_selection_changed(None)
 
-    @exception_handler
+    @wxutil.exception_handler
     def restore_list_item_selection_changed(self, event):
         enable_restore_button = self.restore_list_ctrl.SelectedItemCount == 1
         enable_delete_button = self.restore_list_ctrl.SelectedItemCount >= 1
@@ -147,11 +126,11 @@ class ObsBackupPanel(wx.Panel):
         self.restore_btn.Enable(enable_restore_button)
         self.delete_btn.Enable(enable_delete_button)
 
-    @exception_handler
+    @wxutil.exception_handler
     def restore_list_item_activated(self, event):
         self.restore_backup()
 
-    @exception_handler
+    @wxutil.exception_handler
     def restore_list_column_clicked(self, event):
         (sorter, default_direction) = self.column_sorters[event.Column]
         if sorter == self.backup_sorter:
@@ -162,7 +141,7 @@ class ObsBackupPanel(wx.Panel):
 
         self.restore_list_ctrl.SortItems(sorter)
 
-    @exception_handler
+    @wxutil.exception_handler
     def restore_button_clicked(self, event):
         self.restore_backup()
 
