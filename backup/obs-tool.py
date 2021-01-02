@@ -1,15 +1,15 @@
 import os
 import wx
 
-import backup
-import obs
-import backup_ui
+import backup.backup
+import backup.backup_ui
+import backup.obs
 
 class ObsToolFrame(wx.Frame):
-    def __init__(self, title, backup, obs):
+    def __init__(self, title, backuper, obs):
         super().__init__(parent=None, title=title)
 
-        panel = backup_ui.ObsBackupPanel(self, backup, obs)
+        panel = backup.backup_ui.ObsBackupPanel(self, backuper, obs)
 
         frame_sizer = wx.BoxSizer(wx.VERTICAL)
         frame_sizer.Add(wx.StaticText(self, label="OBS Backup Tool"), 0, wx.ALIGN_CENTER | wx.ALL, 10)
@@ -18,9 +18,9 @@ class ObsToolFrame(wx.Frame):
 
 if __name__ == "__main__":
     app = wx.App()
-    backup = backup.Backup(os.path.expanduser("~/obs-backups"), os.path.expanduser("~/.config/obs-studio"))
-    obs = obs.Obs()
-    frame = ObsToolFrame(title="OBS Backup Tool", backup=backup, obs=obs)
+    backuper = backup.backup.Backup(os.path.expanduser("~/obs-backups"), os.path.expanduser("~/.config/obs-studio"))
+    obs = backup.obs.Obs()
+    frame = ObsToolFrame(title="OBS Backup Tool", backuper=backuper, obs=obs)
     frame.Show()
 
     app.MainLoop()

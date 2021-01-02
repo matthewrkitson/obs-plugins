@@ -2,7 +2,7 @@ import os
 import shutil
 import subprocess
 
-import obs
+from . import obs
 
 class Backup:
     def __init__(self, backups_folder, obs_folder):
