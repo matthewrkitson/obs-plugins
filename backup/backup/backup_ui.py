@@ -44,19 +44,25 @@ class ObsBackupPanel(wx.Panel):
         self.populate_restore_list(self.backup)
         self.restore_list_item_selection_changed(None) # Update button enabled-ness
 
-        grid_sizer = wx.FlexGridSizer(2, vgap=10, hgap=10)
+        grid_sizer = wx.FlexGridSizer(cols=2, vgap=10, hgap=10)
         grid_sizer.AddMany([
-            (backup_name_lbl, 0), empty_cell,
-            (self.backup_name_tb, 1, wx.EXPAND), (self.backup_btn, 0), 
-            (restore_list_lbl, 0), empty_cell,
-            (self.restore_list_ctrl, 1, wx.EXPAND), (button_sizer, 0)
+            (backup_name_lbl, 0, wx.ALIGN_BOTTOM),   empty_cell,
+            (self.backup_name_tb, 1, wx.EXPAND),     (self.backup_btn, 0), 
+            (restore_list_lbl, 0, wx.ALIGN_BOTTOM),  empty_cell,
+            (self.restore_list_ctrl, 1, wx.EXPAND),  (button_sizer, 0)
         ])
 
         grid_sizer.SetFlexibleDirection(wx.BOTH)
         grid_sizer.AddGrowableCol(idx=0, proportion=3)
         grid_sizer.AddGrowableRow(idx=3, proportion=3)
  
-        self.SetSizerAndFit(grid_sizer)
+        padding_sizer = wx.FlexGridSizer(cols=1)
+        padding_sizer.SetFlexibleDirection(wx.BOTH)
+        padding_sizer.AddGrowableCol(idx=0)
+        padding_sizer.AddGrowableRow(idx=0)
+        padding_sizer.Add(grid_sizer, proportion=0, flag=wx.EXPAND | wx.ALL, border=20)
+
+        self.SetSizerAndFit(padding_sizer)
 
     def confirm_overwrite(self):
         return (
